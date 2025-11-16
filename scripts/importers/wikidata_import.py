@@ -30,10 +30,10 @@ def run_sparql(query_text):
     print("HEADERS:", headers)
 
     r = requests.post(
-        SPARQL_URL,
-        data={"query": query_text},
-        headers=headers,
-        timeout=60
+    SPARQL_URL,
+    data={"query": query_text, "format": "json"},
+    headers=headers,
+    timeout=60
     )
 
     print("DEBUG STATUS:", r.status_code)
