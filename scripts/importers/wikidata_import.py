@@ -85,10 +85,15 @@ def import_battles():
             "coordinates": extract_claim(claims, "P625")
         }
 
+        from database.db import upsert_battle
+
+        action = upsert_battle(record)
+
         out_path = PENDING_DIR / f"{qid}.json"
         out_path.write_text(json.dumps(record, indent=2), encoding="utf-8")
 
-        print(f"Saved {qid}")
+        print(f"{action.upper()} {qid}")
+
 
     print("=== Battles Import Complete ===")
 
