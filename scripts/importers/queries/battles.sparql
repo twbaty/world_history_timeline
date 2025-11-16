@@ -1,1 +1,11 @@
+SELECT ?battle ?battleLabel ?battleDescription ?start ?end ?coord
+WHERE {
+  ?battle wdt:P31 wd:Q178561.        # instance of: battle
 
+  OPTIONAL { ?battle wdt:P580 ?start. }   # start time
+  OPTIONAL { ?battle wdt:P582 ?end. }     # end time
+  OPTIONAL { ?battle wdt:P625 ?coord. }   # coordinates
+
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+}
+LIMIT 5000
