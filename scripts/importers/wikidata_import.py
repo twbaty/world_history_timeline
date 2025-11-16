@@ -2,7 +2,7 @@ import requests
 import json
 from pathlib import Path
 
-SPARQL_URL = "https://query.wikidata.org/sparql"
+SPARQL_URL = "https://query.wikidata.org/bigdata/namespace/wdq/sparql"
 ENTITY_URL = "https://www.wikidata.org/wiki/Special:EntityData/{}.json"
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -10,18 +10,24 @@ QUERY_DIR = Path(__file__).resolve().parent / "queries"
 PENDING_DIR = ROOT / "data" / "pending"
 PENDING_DIR.mkdir(parents=True, exist_ok=True)
 
-HEADERS = {
+headers = {
     "Accept": "application/sparql+json",
-    "User-Agent": "WorldHistoryTimeline/1.0 (https://github.com/twbaty/world_history_timeline)"
+    "User-Agent": "WorldHistoryTimeline/1.0 (https://github.com/twbaty/world_history_timeline; mailto:twbaty@gmail.com)"
 }
 
 def load_sparql(filename):
     return (QUERY_DIR / filename).read_text(encoding="utf-8")
 
-def run_sparql(query):
-    r = requests.get(SPARQL_URL, params={"query": query}, headers=HEADERS)
-    r.raise_for_status()
+def run_sparql(query_text):
+    r = requests.get(
+        SPARQL_URL,
+        params={"query": query_text},
+        headers=headers,
+        timeout=30,
+    )
+    print("DEBUG STATUS:", r.status_code)
     return r.json()
+
 
 def fetch_entity(qid):
     url = ENTITY_URL.format(qid)
