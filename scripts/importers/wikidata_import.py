@@ -33,9 +33,8 @@ def load_sparql_query(filename):
 
 def run_sparql_query(query_text):
     headers = {
-        "Accept": "application/sparql+json",
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "WorldHistoryTimeline/1.0 (https://github.com/twbaty/world_history_timeline)"
+    "Accept": "application/sparql+json",
+    "User-Agent": "WorldHistoryTimeline/1.0 (User:Mapwright; https://github.com/twbaty/world_history_timeline)"
     }
 
     # Normalize for Wikidata quirks
