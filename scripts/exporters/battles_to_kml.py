@@ -1,65 +1,64 @@
-import sys
+import sys, pathlib
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
+
 from pathlib import Path
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
-
-from fastkml import kml
-from shapely.geometry import Point
 from database.db import engine, battles
+from sqlalchemy import select
 
+OUTPUT_DIR = Path(__file__).resolve().parents[2] / "exports"
+OUTPUT_DIR.mkdir(exist_ok=True)
+OUTFILE = OUTPUT_DIR / "battles.kml"
 
-
-# Path to the icon
-ROOT = Path(__file__).resolve().parents[2]
-ICON_PATH = ROOT / "assets" / "icons" / "battle.png"
-
-EXPORT_DIR = ROOT / "exports"
-EXPORT_DIR.mkdir(exist_ok=True)
+ICON_URL = "https://raw.githubusercontent.com/twbaty/world_history_timeline/main/icons/battle.png"
 
 
 def export_battles_to_kml():
-    k = kml.KML()
-    doc = kml.Document(ns="", name="World History - Battles")
-    k.append(doc)
-
-    folder = kml.Folder(ns="", name="Battles")
-    doc.append(folder)
-
-    # Apply the style ONCE
-    style_id = "battleStyle"
-    style = kml.Style(id=style_id)
-    style.iconstyle = kml.IconStyle(
-        scale=1.2,
-        icon_href=str(ICON_PATH.as_uri()),
-    )
-    doc.append(style)
-
-    # Load battles
+    # Query DB
     with engine.begin() as conn:
         rows = conn.execute(select(battles)).fetchall()
 
+    # Build KML header + style
+    kml_parts = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<kml xmlns="http://www.opengis.net/kml/2.2">',
+        '<Document>',
+        '  <name>Battles</name>',
+        '  <Style id="battle_icon_style">',
+        '    <IconStyle>',
+        '      <scale>1.2</scale>',
+        f'      <Icon><href>{ICON_URL}</href></Icon>',
+        '    </IconStyle>',
+        '  </Style>',
+    ]
+
+    # Add battles
     for row in rows:
-        if row.latitude is None or row.longitude is None:
+        if not row.latitude or not row.longitude:
             continue
 
-        p = kml.Placemark(ns="", name=row.label or row.id)
-        p.styleUrl = f"#{style_id}"
-        p.geometry = Point(row.longitude, row.latitude)
+        qid = row.id
+        name = row.label or qid
+        desc = row.description or ""
+        lat = row.latitude
+        lon = row.longitude
 
-        desc = []
-        if row.description:
-            desc.append(f"<p>{row.description}</p>")
-        if row.start:
-            desc.append(f"<p><b>Start:</b> {row.start}</p>")
-        if row.end:
-            desc.append(f"<p><b>End:</b> {row.end}</p>")
+        placemark = f"""
+    <Placemark>
+      <name>{name}</name>
+      <description>{desc}</description>
+      <styleUrl>#battle_icon_style</styleUrl>
+      <Point><coordinates>{lon},{lat},0</coordinates></Point>
+    </Placemark>
+"""
+        kml_parts.append(placemark)
 
-        p.description = "\n".join(desc)
-        folder.append(p)
+    # Close document
+    kml_parts.append("</Document>")
+    kml_parts.append("</kml>")
 
-    out_path = EXPORT_DIR / "battles.kml"
-    out_path.write_text(k.to_string(prettyprint=True), encoding="utf-8")
-    print(f"KML written to {out_path}")
+    OUTFILE.write_text("\n".join(kml_parts), encoding="utf-8")
+
+    print(f"KML written to {OUTFILE}")
 
 
 if __name__ == "__main__":
