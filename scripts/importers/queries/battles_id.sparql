@@ -1,0 +1,6 @@
+SELECT ?battle
+WHERE {
+  ?battle wdt:P31 wd:Q178561.   # instance of: battle
+}
+ORDER BY ?battle
+LIMIT 5000
