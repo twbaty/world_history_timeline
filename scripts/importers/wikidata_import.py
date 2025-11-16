@@ -64,6 +64,39 @@ def extract_claim(claims, pid):
     datavalue = mainsnak.get("datavalue", {})
     return datavalue.get("value")
 
+def extract_claim(claims, pid):
+    """Extract time-based claims (P580/P582). Return ISO8601 string or None."""
+    if pid not in claims:
+        return None
+    mainsnak = claims[pid][0].get("mainsnak", {})
+    datavalue = mainsnak.get("datavalue", {})
+    if datavalue.get("type") != "time":
+        return None
+    return datavalue["value"]["time"]  # e.g. +1920-08-21T00:00:00Z
+
+
+def extract_lat(claims):
+    """Extract latitude from P625 coordinate value."""
+    if "P625" not in claims:
+        return None
+    mainsnak = claims["P625"][0].get("mainsnak", {})
+    datavalue = mainsnak.get("datavalue", {})
+    if datavalue.get("type") != "globecoordinate":
+        return None
+    return datavalue["value"].get("latitude")
+
+
+def extract_lon(claims):
+    """Extract longitude from P625 coordinate value."""
+    if "P625" not in claims:
+        return None
+    mainsnak = claims["P625"][0].get("mainsnak", {})
+    datavalue = mainsnak.get("datavalue", {})
+    if datavalue.get("type") != "globecoordinate":
+        return None
+    return datavalue["value"].get("longitude")
+
+
 def import_battles():
 
     print("=== Import Battles (REST API Mode) ===")
