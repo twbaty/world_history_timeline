@@ -45,7 +45,7 @@ def run_sparql(query_text):
 
 def fetch_entity(qid):
     url = ENTITY_URL.format(qid)
-    r = requests.get(url, headers={"User-Agent": HEADERS["User-Agent"]})
+    r = requests.get(url, headers={"User-Agent": headers["User-Agent"]})
     r.raise_for_status()
     return r.json()
 
