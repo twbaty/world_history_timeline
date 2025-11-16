@@ -19,6 +19,12 @@ def load_sparql(filename):
     return (QUERY_DIR / filename).read_text(encoding="utf-8")
 
 def run_sparql(query_text):
+    headers = {
+        "Accept": "application/sparql+json",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "WorldHistoryTimeline/1.0 (https://github.com/twbaty/world_history_timeline; mailto:twbaty@gmail.com)"
+    }
+
     print("REQUEST URL:", SPARQL_URL)
     print("PARAMS:", {"query": query_text[:200]})
     print("HEADERS:", headers)
@@ -26,12 +32,8 @@ def run_sparql(query_text):
     r = requests.post(
         SPARQL_URL,
         data={"query": query_text},
-        headers={
-            "Accept": "application/sparql+json",
-            "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": "WorldHistoryTimeline/1.0 (https://github.com/twbaty/world_history_timeline; mailto:twbaty@gmail.com)"
-        },
-        timeout=30
+        headers=headers,
+        timeout=60
     )
 
     print("DEBUG STATUS:", r.status_code)
