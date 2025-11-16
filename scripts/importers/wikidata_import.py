@@ -27,7 +27,8 @@ def save_raw_response(data, category):
 
 def log(message):
     with open(LOG_FILE, "a", encoding="utf-8") as logf:
-        logf.write(f"{datetime.utcnow().isoformat()} - {message}\n")
+        from datetime import datetime, UTC
+        logf.write(f"{datetime.now(UTC).isoformat()} - {message}\n")
 
 def run_sparql_query(query_text):
     headers = {
