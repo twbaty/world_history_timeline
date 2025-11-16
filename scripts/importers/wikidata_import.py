@@ -101,12 +101,16 @@ def import_battles():
             "id": qid,
             "label": e["labels"].get("en", {}).get("value"),
             "description": e["descriptions"].get("en", {}).get("value"),
+
             "start": extract_claim(claims, "P580"),
             "end": extract_claim(claims, "P582"),
-            "latitude": lat,
-            "longitude": lon,
-            "raw_coordinates": raw,
+
+            "latitude": extract_lat(claims),
+            "longitude": extract_lon(claims),
+
+            "raw_entity": e,   # FULL Wikidata entity object
         }
+
 
         from database.db import upsert_battle
 
