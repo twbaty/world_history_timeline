@@ -1,7 +1,15 @@
 import requests
 import json
 from pathlib import Path
+import sys
 
+# Resolve the project root (world_history_timeline/)
+ROOT = Path(__file__).resolve().parents[2]
+
+# Add project root to Python path so `import database` works everywhere
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+    
 SPARQL_URL = "https://query.wikidata.org/sparql"
 ENTITY_URL = "https://www.wikidata.org/wiki/Special:EntityData/{}.json"
 
