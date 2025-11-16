@@ -1,1 +1,39 @@
+{
+  "type": "object",
+  "required": ["id", "name", "start", "end", "region", "event_type", "themes", "attribution"],
+  "properties": {
+    "id": { "type": "string" },
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+
+    "start": { "type": "number" },
+    "end": { "type": "number" },
+
+    "coordinates": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 2,
+      "maxItems": 3
+    },
+
+    "region": { "type": "array", "items": { "type": "string" } },
+    "culture": { "type": "array", "items": { "type": "string" } },
+    "religion": { "type": "array", "items": { "type": "string" } },
+    "event_type": { "type": "array", "items": { "type": "string" } },
+    "impact_level": { "type": "array", "items": { "type": "string" } },
+    "timespan_category": { "type": "string" },
+    "themes": { "type": "array", "items": { "type": "string" } },
+
+    "attribution": {
+      "type": "object",
+      "properties": {
+        "source": { "type": "string" },
+        "source_id": { "type": "string" },
+        "retrieved": { "type": "string" },
+        "license": { "type": "string" },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}
 
