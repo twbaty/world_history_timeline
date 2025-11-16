@@ -32,13 +32,27 @@ def log(message):
 
 def run_sparql_query(query_text):
     headers = {
-    "Accept": "application/sparql+json",
-    "User-Agent": "WorldHistoryTimeline/1.0 (https://github.com/twbaty/world_history_timeline; mailto:twbaty@gmail.com)"
+        "Accept": "application/sparql+json",
+        "User-Agent": "WorldHistoryTimeline/1.0 (https://github.com/twbaty/world_history_timeline; mailto:twbaty@gmail.com)"
     }
 
-    response = requests.get(SPARQL_URL, params={'query': query_text}, headers=headers)
+    response = requests.get(
+        SPARQL_URL,
+        params={'query': query_text},
+        headers=headers
+    )
+
+    # DEBUG OUTPUT: DO NOT REMOVE
+    print("\n--- WIKIDATA DEBUG ---")
+    print("STATUS:", response.status_code)
+    print("HEADERS:", dict(response.headers))
+    print("BODY PREVIEW:", response.text[:500])
+    print("--- END DEBUG ---\n")
+
+    # If it's not JSON, this will fail — but AFTER we see the debug output
     response.raise_for_status()
     return response.json()
+
 
 def import_battles():
     log("Starting Wikidata battles import...")
