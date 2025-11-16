@@ -32,13 +32,14 @@ def log(message):
 
 def run_sparql_query(query_text):
     headers = {
-        "Accept": "application/sparql+json",
-        "User-Agent": "WorldHistoryTimeline/1.0 (https://github.com/twbaty/world_history_timeline; mailto:twbaty@gmail.com)"
+    "Accept": "application/sparql+json",
+    "Content-Type": "application/x-www-form-urlencoded",
+    "User-Agent": "WorldHistoryTimeline/1.0 (https://github.com/twbaty/world_history_timeline; mailto:twbaty@gmail.com)"
     }
 
-    response = requests.get(
+    response = requests.post(
         SPARQL_URL,
-        params={'query': query_text},
+        data={'query': query_text},
         headers=headers
     )
 
