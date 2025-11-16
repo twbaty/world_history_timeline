@@ -76,13 +76,28 @@ def import_battles():
 
         claims = e.get("claims", {})
 
+        coord = extract_claim(claims, "P625")
+
+        lat = None
+        lon = None
+        raw = None
+
+        if isinstance(coord, dict):
+            lat = coord.get("latitude")
+            lon = coord.get("longitude")
+            raw = coord
+        else:
+            raw = coord
+
         record = {
             "id": qid,
             "label": e["labels"].get("en", {}).get("value"),
             "description": e["descriptions"].get("en", {}).get("value"),
             "start": extract_claim(claims, "P580"),
             "end": extract_claim(claims, "P582"),
-            "coordinates": extract_claim(claims, "P625")
+            "latitude": lat,
+            "longitude": lon,
+            "raw_coordinates": raw,
         }
 
         from database.db import upsert_battle
