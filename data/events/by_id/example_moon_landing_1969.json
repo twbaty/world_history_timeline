@@ -1,1 +1,25 @@
+{
+  "id": "moon_landing_1969",
+  "name": "Apollo 11 Moon Landing",
+  "description": "First human landing on the Moon.",
+  "start": 1969,
+  "end": 1969,
+  "coordinates": [-86.1581, 0.6731],
+
+  "region": ["Global"],
+  "culture": ["Western/European"],
+  "religion": ["Secular"],
+  "event_type": ["Scientific Milestone", "Technological Progress"],
+  "impact_level": ["Global"],
+  "timespan_category": "Instant",
+  "themes": ["Scientific Progress", "Exploration & Discovery"],
+
+  "attribution": {
+    "source": "Wikidata",
+    "source_id": "Q19056",
+    "retrieved": "2025-01-15",
+    "license": "CC-BY-SA",
+    "notes": "Coordinates refer to Tranquility Base on the Moon's surface."
+  }
+}
 
