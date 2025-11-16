@@ -32,9 +32,10 @@ def log(message):
 
 def run_sparql_query(query_text):
     headers = {
-        "Accept": "application/sparql+json",
-        "User-Agent": "WorldHistoryProject/1.0"
+    "Accept": "application/sparql+json",
+    "User-Agent": "WorldHistoryTimeline/1.0 (https://github.com/twbaty/world_history_timeline; mailto:twbaty@gmail.com)"
     }
+
     response = requests.get(SPARQL_URL, params={'query': query_text}, headers=headers)
     response.raise_for_status()
     return response.json()
