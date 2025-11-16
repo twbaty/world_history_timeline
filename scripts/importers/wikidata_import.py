@@ -19,15 +19,21 @@ def load_sparql(filename):
     return (QUERY_DIR / filename).read_text(encoding="utf-8")
 
 def run_sparql(query_text):
+    print("REQUEST URL:", SPARQL_URL)
+    print("PARAMS:", {"query": query_text[:200]})
+    print("HEADERS:", headers)
+
     r = requests.get(
         SPARQL_URL,
         params={"query": query_text},
         headers=headers,
-        timeout=30,
+        timeout=30
     )
-    print("DEBUG STATUS:", r.status_code)
-    return r.json()
 
+    print("DEBUG STATUS:", r.status_code)
+    print("DEBUG CONTENT-TYPE:", r.headers.get("Content-Type"))
+    print("BODY PREVIEW:", r.text[:300])
+    return r.json()
 
 def fetch_entity(qid):
     url = ENTITY_URL.format(qid)
