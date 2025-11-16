@@ -1,11 +1,6 @@
-SELECT ?battle ?start ?end ?coord
+SELECT ?battle
 WHERE {
-  hint:Query hint:timeout "60000" .
-
-  ?battle wdt:P31/wdt:P279* wd:Q178561.
-
-  OPTIONAL { ?battle wdt:P580 ?start. }
-  OPTIONAL { ?battle wdt:P582 ?end. }
-  OPTIONAL { ?battle wdt:P625 ?coord. }
+  ?battle wdt:P31 wd:Q178561.   # instance of: battle
 }
-LIMIT 3000
+ORDER BY ?battle
+LIMIT 5000   # safe because this is only URIs
