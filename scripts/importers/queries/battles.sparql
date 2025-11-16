@@ -1,11 +1,13 @@
 SELECT ?battle ?battleLabel ?battleDescription ?start ?end ?coord
 WHERE {
-  ?battle wdt:P31 wd:Q178561.        # instance of: battle
+  ?battle wdt:P31/wdt:P279* wd:Q178561.
 
-  OPTIONAL { ?battle wdt:P580 ?start. }   # start time
-  OPTIONAL { ?battle wdt:P582 ?end. }     # end time
-  OPTIONAL { ?battle wdt:P625 ?coord. }   # coordinates
+  OPTIONAL { ?battle wdt:P580 ?start. }     # start time
+  OPTIONAL { ?battle wdt:P582 ?end. }       # end time
+  OPTIONAL { ?battle wdt:P625 ?coord. }     # location point
 
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+  SERVICE wikibase:label {
+    bd:serviceParam wikibase:language "en".
+  }
 }
 LIMIT 5000
