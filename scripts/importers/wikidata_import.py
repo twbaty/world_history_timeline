@@ -2,7 +2,7 @@ import requests
 import json
 from pathlib import Path
 
-SPARQL_URL = "https://query.wikidata.org/bigdata/namespace/wdq/sparql"
+SPARQL_URL = "https://query.wikidata.org/sparql"
 ENTITY_URL = "https://www.wikidata.org/wiki/Special:EntityData/{}.json"
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -23,16 +23,22 @@ def run_sparql(query_text):
     print("PARAMS:", {"query": query_text[:200]})
     print("HEADERS:", headers)
 
-    r = requests.get(
+    r = requests.post(
         SPARQL_URL,
-        params={"query": query_text},
-        headers=headers,
+        data={"query": query_text},
+        headers={
+            "Accept": "application/sparql+json",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": "WorldHistoryTimeline/1.0 (https://github.com/twbaty/world_history_timeline; mailto:twbaty@gmail.com)"
+        },
         timeout=30
     )
 
     print("DEBUG STATUS:", r.status_code)
     print("DEBUG CONTENT-TYPE:", r.headers.get("Content-Type"))
     print("BODY PREVIEW:", r.text[:300])
+
+    r.raise_for_status()
     return r.json()
 
 def fetch_entity(qid):
