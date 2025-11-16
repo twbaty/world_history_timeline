@@ -1,151 +1,76 @@
-import json
 import requests
+import json
 from pathlib import Path
-from datetime import datetime
-
-# ---------------------------------------------------------
-# CONSTANTS & DIRECTORY SETUP
-# ---------------------------------------------------------
-
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-QUERY_DIR = BASE_DIR / "scripts" / "importers" / "queries"
-
-RAW_DIR = BASE_DIR / "data" / "raw" / "battles"
-NORMALIZED_DIR = BASE_DIR / "data" / "pending"
 
 SPARQL_URL = "https://query.wikidata.org/sparql"
+ENTITY_URL = "https://www.wikidata.org/wiki/Special:EntityData/{}.json"
 
+ROOT = Path(__file__).resolve().parents[2]
+QUERY_DIR = Path(__file__).resolve().parent / "queries"
+PENDING_DIR = ROOT / "data" / "pending"
+PENDING_DIR.mkdir(parents=True, exist_ok=True)
 
-# ---------------------------------------------------------
-# LOAD SPARQL QUERY FILE
-# ---------------------------------------------------------
-
-def load_sparql_query(filename):
-    path = QUERY_DIR / filename
-    if not path.exists():
-        raise FileNotFoundError(f"SPARQL query not found: {path}")
-    return path.read_text(encoding="utf-8")
-
-
-# ---------------------------------------------------------
-# RUN SPARQL QUERY (POST + JSON)
-# ---------------------------------------------------------
-
-def run_sparql_query(query_text):
-    headers = {
+HEADERS = {
     "Accept": "application/sparql+json",
-    "User-Agent": "WorldHistoryTimeline/1.0 (User:Mapwright; https://github.com/twbaty/world_history_timeline)"
-    }
+    "User-Agent": "WorldHistoryTimeline/1.0 (https://github.com/twbaty/world_history_timeline)"
+}
 
-    # Normalize for Wikidata quirks
-    query_text = query_text.replace("\r\n", "\n").lstrip("\ufeff").lstrip()
+def load_sparql(filename):
+    return (QUERY_DIR / filename).read_text(encoding="utf-8")
 
-    response = requests.post(
-        SPARQL_URL,
-        data={'query': query_text},
-        headers=headers
-    )
+def run_sparql(query):
+    r = requests.get(SPARQL_URL, params={"query": query}, headers=HEADERS)
+    r.raise_for_status()
+    return r.json()
 
-    print("\n--- WIKIDATA DEBUG ---")
-    print("STATUS:", response.status_code)
-    print("CONTENT-TYPE:", response.headers.get("content-type"))
-    print("BODY PREVIEW:", response.text[:300])
-    print("--- END DEBUG ---\n")
+def fetch_entity(qid):
+    url = ENTITY_URL.format(qid)
+    r = requests.get(url, headers={"User-Agent": HEADERS["User-Agent"]})
+    r.raise_for_status()
+    return r.json()
 
-    response.raise_for_status()
-    return response.json()
-
-
-# ---------------------------------------------------------
-# NORMALIZER — Convert Wikidata binding → Event Dict
-# ---------------------------------------------------------
-
-def normalize_battle(binding):
-    """Convert SPARQL result binding to our event schema."""
-    try:
-        battle_id = binding["battle"]["value"].split("/")[-1]
-        label = binding.get("battleLabel", {}).get("value")
-        description = binding.get("battleDescription", {}).get("value")
-
-        start = binding.get("start", {}).get("value")
-        end = binding.get("end", {}).get("value")
-
-        coord_raw = binding.get("coord", {}).get("value")
-
-        # Parse coordinates if available
-        lat = None
-        lon = None
-        if coord_raw and coord_raw.startswith("Point("):
-            parts = coord_raw.replace("Point(", "").replace(")", "").split(" ")
-            lon = float(parts[0])
-            lat = float(parts[1])
-
-        return {
-            "id": battle_id,
-            "type": "battle",
-            "label": label,
-            "description": description,
-            "start": start,
-            "end": end,
-            "latitude": lat,
-            "longitude": lon,
-            "source": "wikidata"
-        }
-    except Exception:
+def extract_claim(claims, pid):
+    if pid not in claims:
         return None
-
-
-# ---------------------------------------------------------
-# IMPORTER — TALKATIVE VERSION
-# ---------------------------------------------------------
+    mainsnak = claims[pid][0].get("mainsnak", {})
+    datavalue = mainsnak.get("datavalue", {})
+    return datavalue.get("value")
 
 def import_battles():
-    print("=== World History Timeline Importer ===")
-    print("Importing battles from Wikidata...")
-    print("----------------------------------------")
 
-    query = load_sparql_query("battles.sparql")
-    print("Loaded SPARQL query.")
+    print("=== Import Battles (REST API Mode) ===")
 
-    print("Sending query to Wikidata...")
-    data = run_sparql_query(query)
+    query = load_sparql("battles_ids.sparql")
+    print("Fetching Q-IDs from Wikidata...")
+    data = run_sparql(query)
 
-    bindings = data.get("results", {}).get("bindings", [])
-    count = len(bindings)
-    print(f"Wikidata returned {count} results.")
+    bindings = data["results"]["bindings"]
+    qids = [b["battle"]["value"].split("/")[-1] for b in bindings]
 
-    if count == 0:
-        print("⚠ No results found. Likely the SPARQL query is too strict.")
-        return
+    print(f"Retrieved {len(qids)} battles.")
+    print("Fetching details...")
 
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
-    NORMALIZED_DIR.mkdir(parents=True, exist_ok=True)
+    for qid in qids:
+        entity = fetch_entity(qid)
+        e = entity["entities"][qid]
 
-    timestamp = datetime.now().isoformat().replace(":", "-")
+        claims = e.get("claims", {})
 
-    # Save raw dump
-    raw_path = RAW_DIR / f"raw_battles_{timestamp}.json"
-    raw_path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
-    print(f"Raw data saved → {raw_path}")
+        record = {
+            "id": qid,
+            "label": e["labels"].get("en", {}).get("value"),
+            "description": e["descriptions"].get("en", {}).get("value"),
+            "start": extract_claim(claims, "P580"),
+            "end": extract_claim(claims, "P582"),
+            "coordinates": extract_claim(claims, "P625")
+        }
 
-    # Normalize
-    normalized = [normalize_battle(b) for b in bindings]
-    normalized = [n for n in normalized if n]
+        out_path = PENDING_DIR / f"{qid}.json"
+        out_path.write_text(json.dumps(record, indent=2), encoding="utf-8")
 
-    if not normalized:
-        print("⚠ No normalized results — possibly missing coordinates or labels.")
-        return
+        print(f"Saved {qid}")
 
-    norm_path = NORMALIZED_DIR / f"normalized_battles_{timestamp}.json"
-    norm_path.write_text(json.dumps(normalized, indent=2, ensure_ascii=False))
-    print(f"Normalized events saved → {norm_path}")
-
-    print("=== Import Complete ===")
-
-
-# ---------------------------------------------------------
-# ENTRY POINT
-# ---------------------------------------------------------
+    print("=== Battles Import Complete ===")
 
 if __name__ == "__main__":
     import_battles()
