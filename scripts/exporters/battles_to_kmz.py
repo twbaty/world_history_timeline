@@ -2,31 +2,50 @@ import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
 from pathlib import Path
+from sqlalchemy import select
 from fastkml import kml
 from shapely.geometry import Point
-from sqlalchemy import select
 from database.db import engine, battles
-import zipfile
+from xml.etree.ElementTree import Element, SubElement, tostring
+from zipfile import ZipFile, ZIP_DEFLATED
 
 
 def export_battles_to_kmz():
-    ROOT = Path(__file__).resolve().parents[2]
-    EXPORTS_DIR = ROOT / "exports"
-    EXPORTS_DIR.mkdir(exist_ok=True)
 
-    OUTFILE = EXPORTS_DIR / "battles.kmz"
-    ICON_SRC = ROOT / "icons" / "battle.png"
+    BASE = Path(__file__).resolve().parents[2]
+    ICON_SRC = BASE / "icons" / "battle.png"
+    EXPORT_DIR = BASE / "exports"
+    KML_PATH = EXPORT_DIR / "battles.kml"
+    KMZ_PATH = EXPORT_DIR / "battles.kmz"
+
+    EXPORT_DIR.mkdir(exist_ok=True)
 
     if not ICON_SRC.exists():
         raise FileNotFoundError(f"Missing icon: {ICON_SRC}")
 
-    # --------------------
-    # Build base KML tree
-    # --------------------
+    ns = "{http://www.opengis.net/kml/2.2}"
     doc = kml.KML()
-    root_folder = kml.Folder(name="Battles", description="All battle locations")
-    doc.append(root_folder)
+    folder = kml.Folder(ns, "root", "Battles", "All battle locations")
+    doc.append(folder)
 
+    # --- Style creation using ElementTree (NOT raw strings) ---
+    style_el = Element("Style", id="battleStyle")
+    iconstyle = SubElement(style_el, "IconStyle")
+    scale = SubElement(iconstyle, "scale")
+    scale.text = "1.2"
+
+    icon = SubElement(iconstyle, "Icon")
+    href = SubElement(icon, "href")
+    href.text = "battle.png"  # relative inside KMZ
+
+    labelstyle = SubElement(style_el, "LabelStyle")
+    label_scale = SubElement(labelstyle, "scale")
+    label_scale.text = "1.1"
+
+    # Attach style element directly into the KML root
+    doc._features.append(style_el)
+
+    # --- Load battles ---
     with engine.begin() as conn:
         rows = conn.execute(
             select(battles).where(
@@ -36,55 +55,23 @@ def export_battles_to_kmz():
         ).fetchall()
 
     for row in rows:
-        p = Point(float(row.longitude), float(row.latitude))
+        name = row.label or row.id
+        point = Point(float(row.longitude), float(row.latitude))
 
-        pm = kml.Placemark(
-            name=row.label or row.id,
-            description=row.description or "",
-            geometry=p
-        )
-
-        # Style reference only
+        pm = kml.Placemark(ns, str(row.id), name, "", geometry=point)
         pm.style_url = "#battleStyle"
+        folder.append(pm)
 
-        root_folder.features.append(pm)
+    # Write KML
+    with open(KML_PATH, "w", encoding="utf-8") as f:
+        f.write(doc.to_string(prettyprint=True))
 
-    # --------------------
-    # Convert to KML text
-    # --------------------
-    kml_text = doc.to_string(prettyprint=True)
+    # Build KMZ
+    with ZipFile(KMZ_PATH, "w", ZIP_DEFLATED) as z:
+        z.write(KML_PATH, "doc.kml")       # rename inside KMZ
+        z.write(ICON_SRC, "battle.png")    # embed icon
 
-    # --------------------
-    # Inject style manually
-    # --------------------
-    style_block = f"""
-    <Style id="battleStyle">
-      <IconStyle>
-        <scale>1.4</scale>
-        <Icon>
-          <href>battle.png</href>
-        </Icon>
-      </IconStyle>
-      <LabelStyle>
-        <scale>1.2</scale>
-      </LabelStyle>
-    </Style>
-    """
-
-    # Insert right before </Document>
-    if "</Document>" in kml_text:
-        kml_text = kml_text.replace("</Document>", style_block + "\n</Document>")
-
-    # --------------------
-    # Package as KMZ
-    # --------------------
-    with zipfile.ZipFile(OUTFILE, "w", zipfile.ZIP_DEFLATED) as kmz:
-        # main KML
-        kmz.writestr("doc.kml", kml_text)
-        # icon
-        kmz.write(ICON_SRC, arcname="battle.png")
-
-    print(f"KMZ written to: {OUTFILE}")
+    print(f"KMZ written to {KMZ_PATH}")
 
 
 if __name__ == "__main__":
