@@ -20,13 +20,11 @@ def export_battles_to_kmz():
     if not ICON_SRC.exists():
         raise FileNotFoundError(f"Missing icon: {ICON_SRC}")
 
-    # Build KML using fastkml
+    # --------------------
+    # Build base KML tree
+    # --------------------
     doc = kml.KML()
-
-    root_folder = kml.Folder(
-        name="Battles",
-        description="All battle locations"
-    )
+    root_folder = kml.Folder(name="Battles", description="All battle locations")
     doc.append(root_folder)
 
     with engine.begin() as conn:
@@ -40,21 +38,25 @@ def export_battles_to_kmz():
     for row in rows:
         p = Point(float(row.longitude), float(row.latitude))
 
-        placemark = kml.Placemark(
+        pm = kml.Placemark(
             name=row.label or row.id,
             description=row.description or "",
             geometry=p
         )
 
-        # Reference our style (to be injected later)
-        placemark.style_url = "#battleStyle"
+        # Style reference only
+        pm.style_url = "#battleStyle"
 
-        root_folder.features.append(placemark)
+        root_folder.features.append(pm)
 
+    # --------------------
     # Convert to KML text
+    # --------------------
     kml_text = doc.to_string(prettyprint=True)
 
-    # Inject style block manually before </Document>
+    # --------------------
+    # Inject style manually
+    # --------------------
     style_block = f"""
     <Style id="battleStyle">
       <IconStyle>
@@ -69,12 +71,17 @@ def export_battles_to_kmz():
     </Style>
     """
 
+    # Insert right before </Document>
     if "</Document>" in kml_text:
         kml_text = kml_text.replace("</Document>", style_block + "\n</Document>")
 
-    # Write KMZ
+    # --------------------
+    # Package as KMZ
+    # --------------------
     with zipfile.ZipFile(OUTFILE, "w", zipfile.ZIP_DEFLATED) as kmz:
+        # main KML
         kmz.writestr("doc.kml", kml_text)
+        # icon
         kmz.write(ICON_SRC, arcname="battle.png")
 
     print(f"KMZ written to: {OUTFILE}")
