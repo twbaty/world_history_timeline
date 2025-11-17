@@ -25,7 +25,12 @@ def export_battles_to_kmz():
 
     ns = "{http://www.opengis.net/kml/2.2}"
     doc = kml.KML()
-    folder = kml.Folder(ns, "root", "Battles", "All battle locations")
+    folder = kml.Folder(
+    ns=ns,
+    id="root",
+    name="Battles",
+    description="All battle locations"
+    )
     doc.append(folder)
 
     # --- Style creation using ElementTree (NOT raw strings) ---
@@ -58,7 +63,13 @@ def export_battles_to_kmz():
         name = row.label or row.id
         point = Point(float(row.longitude), float(row.latitude))
 
-        pm = kml.Placemark(ns, str(row.id), name, "", geometry=point)
+        pm = kml.Placemark(
+        ns=ns,
+        id=str(row.id),
+        name=name,
+        description=desc,
+        geometry=point
+        )
         pm.style_url = "#battleStyle"
         folder.append(pm)
 
