@@ -2,36 +2,42 @@ import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
 from pathlib import Path
-from fastkml import kml
-from shapely.geometry import Point
 from sqlalchemy import select
 from database.db import engine, battles
 
 
 def export_battles_to_kml():
-    # Where KML goes
+    # Export folder
     EXPORTS_DIR = Path(__file__).resolve().parents[1] / "exports"
     EXPORTS_DIR.mkdir(exist_ok=True)
     OUTFILE = EXPORTS_DIR / "battles.kml"
 
-    # Where the PNG icon is
+    # Icon path
     ICON_PATH = Path(__file__).resolve().parents[2] / "icons" / "battle.png"
-
-    # Convert to file:// URI
     icon_href = ICON_PATH.resolve().as_uri()
 
-    # --- Build KML doc ---
-    doc = kml.KML()
-    ns = "{http://www.opengis.net/kml/2.2}"
+    # Pull rows with coordinates
+    with engine.begin() as conn:
+        rows = conn.execute(
+            select(battles)
+            .where(
+                battles.c.latitude.is_not(None),
+                battles.c.longitude.is_not(None)
+            )
+        ).fetchall()
 
-    # Root Folder
-    root_folder = kml.Folder(ns, "root", "Battles", "All battle points")
-    doc.append(root_folder)
+    # Build KML manually
+    kml_parts = []
 
-    # Manual Style injection (fastkml doesn't have full styling)
-    style_id = "battleStyle"
-    style_xml = f"""
-    <Style id="{style_id}">
+    kml_parts.append('<?xml version="1.0" encoding="UTF-8"?>')
+    kml_parts.append('<kml xmlns="http://www.opengis.net/kml/2.2">')
+    kml_parts.append('<Document>')
+    kml_parts.append('  <name>Battles</name>')
+    kml_parts.append('  <description>Battle locations from Wikidata</description>')
+
+    # ---- Style for battles ----
+    kml_parts.append(f"""
+    <Style id="battleStyle">
       <IconStyle>
         <scale>1.2</scale>
         <Icon>
@@ -42,41 +48,37 @@ def export_battles_to_kml():
         <scale>1.1</scale>
       </LabelStyle>
     </Style>
-    """
+    """)
 
-    # Manually attach the raw XML
-    root_folder._features.append(style_xml)
-
-    # Pull DB rows
-    with engine.begin() as conn:
-        rows = conn.execute(
-            select(battles).where(
-                battles.c.latitude.is_not(None),
-                battles.c.longitude.is_not(None)
-            )
-        ).fetchall()
-
+    # ---- Placemarks ----
     for row in rows:
         name = row.label or row.id
-        desc = row.description or ""
+        desc = (row.description or "").replace("&", "&amp;").replace("<", "&lt;")
 
-        p = Point(float(row.longitude), float(row.latitude))
+        lat = row.latitude
+        lon = row.longitude
 
-        placemark = kml.Placemark(
-            ns,
-            row.id,
-            name,
-            desc,
-            geometry=p
-        )
+        kml_parts.append(f"""
+        <Placemark>
+          <name>{name}</name>
+          <description>{desc}</description>
+          <styleUrl>#battleStyle</styleUrl>
+          <Point>
+            <coordinates>{lon},{lat},0</coordinates>
+          </Point>
+        </Placemark>
+        """)
 
-        # Attach style
-        placemark.style_url = f"#{style_id}"
+    # ---- Close KML ----
+    kml_parts.append("</Document>")
+    kml_parts.append("</kml>")
 
-        root_folder.append(placemark)
-
-    # Write file
+    # Write new file
     with open(OUTFILE, "w", encoding="utf-8") as f:
-        f.write(doc.to_string(prettyprint=True))
+        f.write("\n".join(kml_parts))
 
     print(f"KML written to {OUTFILE}")
+
+
+if __name__ == "__main__":
+    export_battles_to_kml()
