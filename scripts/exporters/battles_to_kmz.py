@@ -3,6 +3,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
 from pathlib import Path
 from fastkml import kml
+from fastkml.extended_data import ExtendedData, Data
 from shapely.geometry import Point
 from sqlalchemy import select
 from database.db import engine, battles
@@ -20,14 +21,17 @@ def export_battles_to_kmz():
     if not ICON_SRC.exists():
         raise FileNotFoundError(f"Missing icon: {ICON_SRC}")
 
-    # --- Build KML ---
+    # --- Build KML doc ---
     doc = kml.KML()
 
-    # Folder — fastkml now only accepts (name, description)
-    root_folder = kml.Folder(name="Battles", description="All battle locations")
+    # Folder constructor now only takes (name, description)
+    root_folder = kml.Folder(
+        name="Battles",
+        description="All battle locations"
+    )
     doc.append(root_folder)
 
-    # Style (manual XML injection)
+    # Inject style using ExtendedData hack
     style_id = "battleStyle"
     style_xml = f"""
     <Style id="{style_id}">
@@ -42,7 +46,17 @@ def export_battles_to_kmz():
       </LabelStyle>
     </Style>
     """
-    root_folder._features.append(style_xml)
+
+    style_holder = kml.Placemark(
+        name="StyleHolder",
+        description="Holds style XML"
+    )
+
+    style_holder.extended_data = ExtendedData([
+        Data(name="style", value=style_xml)
+    ])
+
+    root_folder.features.append(style_holder)
 
     # Fetch DB rows
     with engine.begin() as conn:
@@ -58,26 +72,16 @@ def export_battles_to_kmz():
         name = row.label or row.id
         desc = row.description or ""
 
-        placemark = kml.Placemark(
-            name=name,
-            description=desc,
-            geometry=p
-        )
+        placemark = kml.Placemark(name=name, description=desc, geometry=p)
         placemark.style_url = f"#{style_id}"
-        root_folder.append(placemark)
+        root_folder.features.append(placemark)
 
-    # Write KML into KMZ structure
-    kmz_path = OUTFILE
-    with zipfile.ZipFile(kmz_path, "w", zipfile.ZIP_DEFLATED) as kmz:
-        # KML goes in doc.kml
-        kmz.writestr(
-            "doc.kml",
-            doc.to_string(prettyprint=True)
-        )
-        # Icon sits at top-level
+    # Build KMZ
+    with zipfile.ZipFile(OUTFILE, "w", zipfile.ZIP_DEFLATED) as kmz:
+        kmz.writestr("doc.kml", doc.to_string(prettyprint=True))
         kmz.write(ICON_SRC, arcname="battle.png")
 
-    print(f"KMZ written to: {kmz_path}")
+    print(f"KMZ written to: {OUTFILE}")
 
 
 if __name__ == "__main__":
