@@ -3,7 +3,6 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
 from pathlib import Path
 from fastkml import kml
-from fastkml.extended_data import ExtendedData, Data
 from shapely.geometry import Point
 from sqlalchemy import select
 from database.db import engine, battles
@@ -21,44 +20,15 @@ def export_battles_to_kmz():
     if not ICON_SRC.exists():
         raise FileNotFoundError(f"Missing icon: {ICON_SRC}")
 
-    # --- Build KML doc ---
+    # Build KML using fastkml
     doc = kml.KML()
 
-    # Folder constructor now only takes (name, description)
     root_folder = kml.Folder(
         name="Battles",
         description="All battle locations"
     )
     doc.append(root_folder)
 
-    # Inject style using ExtendedData hack
-    style_id = "battleStyle"
-    style_xml = f"""
-    <Style id="{style_id}">
-      <IconStyle>
-        <scale>1.3</scale>
-        <Icon>
-          <href>battle.png</href>
-        </Icon>
-      </IconStyle>
-      <LabelStyle>
-        <scale>1.2</scale>
-      </LabelStyle>
-    </Style>
-    """
-
-    style_holder = kml.Placemark(
-        name="StyleHolder",
-        description="Holds style XML"
-    )
-
-    style_holder.extended_data = ExtendedData([
-        Data(name="style", value=style_xml)
-    ])
-
-    root_folder.features.append(style_holder)
-
-    # Fetch DB rows
     with engine.begin() as conn:
         rows = conn.execute(
             select(battles).where(
@@ -69,16 +39,42 @@ def export_battles_to_kmz():
 
     for row in rows:
         p = Point(float(row.longitude), float(row.latitude))
-        name = row.label or row.id
-        desc = row.description or ""
 
-        placemark = kml.Placemark(name=name, description=desc, geometry=p)
-        placemark.style_url = f"#{style_id}"
+        placemark = kml.Placemark(
+            name=row.label or row.id,
+            description=row.description or "",
+            geometry=p
+        )
+
+        # Reference our style (to be injected later)
+        placemark.style_url = "#battleStyle"
+
         root_folder.features.append(placemark)
 
-    # Build KMZ
+    # Convert to KML text
+    kml_text = doc.to_string(prettyprint=True)
+
+    # Inject style block manually before </Document>
+    style_block = f"""
+    <Style id="battleStyle">
+      <IconStyle>
+        <scale>1.4</scale>
+        <Icon>
+          <href>battle.png</href>
+        </Icon>
+      </IconStyle>
+      <LabelStyle>
+        <scale>1.2</scale>
+      </LabelStyle>
+    </Style>
+    """
+
+    if "</Document>" in kml_text:
+        kml_text = kml_text.replace("</Document>", style_block + "\n</Document>")
+
+    # Write KMZ
     with zipfile.ZipFile(OUTFILE, "w", zipfile.ZIP_DEFLATED) as kmz:
-        kmz.writestr("doc.kml", doc.to_string(prettyprint=True))
+        kmz.writestr("doc.kml", kml_text)
         kmz.write(ICON_SRC, arcname="battle.png")
 
     print(f"KMZ written to: {OUTFILE}")
