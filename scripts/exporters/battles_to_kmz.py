@@ -3,10 +3,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
 from pathlib import Path
 from sqlalchemy import select
-from fastkml import kml
-from shapely.geometry import Point
 from database.db import engine, battles
-from xml.etree.ElementTree import Element, SubElement, tostring
 from zipfile import ZipFile, ZIP_DEFLATED
 
 
@@ -23,36 +20,7 @@ def export_battles_to_kmz():
     if not ICON_SRC.exists():
         raise FileNotFoundError(f"Missing icon: {ICON_SRC}")
 
-    ns = "{http://www.opengis.net/kml/2.2}"
-    doc = kml.KML()
-
-    folder = kml.Folder(
-        ns=ns,
-        id="root",
-        name="Battles",
-        description="All battle locations"
-    )
-    doc.append(folder)
-
-    # --- Style creation using ElementTree ---
-    style_el = Element("Style", id="battleStyle")
-
-    iconstyle = SubElement(style_el, "IconStyle")
-    scale = SubElement(iconstyle, "scale")
-    scale.text = "1.2"
-
-    icon = SubElement(iconstyle, "Icon")
-    href = SubElement(icon, "href")
-    href.text = "battle.png"  # file inside KMZ
-
-    labelstyle = SubElement(style_el, "LabelStyle")
-    label_scale = SubElement(labelstyle, "scale")
-    label_scale.text = "1.1"
-
-    # Inject style XML at top level
-    doc.features.append(style_el)
-
-    # --- Load battles ---
+    # --- Fetch DB rows ---
     with engine.begin() as conn:
         rows = conn.execute(
             select(battles).where(
@@ -61,26 +29,55 @@ def export_battles_to_kmz():
             )
         ).fetchall()
 
+    # --- Build KML manually ---
+    parts = []
+
+    parts.append("""<?xml version="1.0" encoding="UTF-8"?>""")
+    parts.append("""<kml xmlns="http://www.opengis.net/kml/2.2">""")
+    parts.append("""<Document>""")
+
+    # Style block
+    parts.append("""
+    <Style id="battleStyle">
+      <IconStyle>
+        <scale>1.2</scale>
+        <Icon>
+          <href>battle.png</href>
+        </Icon>
+      </IconStyle>
+      <LabelStyle>
+        <scale>1.1</scale>
+      </LabelStyle>
+    </Style>
+    """)
+
+    parts.append("""<Folder><name>Battles</name>""")
+
     for row in rows:
-        name = row.label or row.id
-        desc = row.description or ""
-        point = Point(float(row.longitude), float(row.latitude))
+        name = (row.label or row.id).replace("&", "&amp;")
+        desc = (row.description or "").replace("&", "&amp;")
+        lat = float(row.latitude)
+        lon = float(row.longitude)
 
-        pm = kml.Placemark(
-            ns=ns,
-            id=str(row.id),
-            name=name,
-            description=desc,
-            geometry=point
-        )
-        pm.style_url = "#battleStyle"
-        folder.append(pm)
+        parts.append(f"""
+        <Placemark>
+            <name>{name}</name>
+            <description>{desc}</description>
+            <styleUrl>#battleStyle</styleUrl>
+            <Point>
+                <coordinates>{lon},{lat},0</coordinates>
+            </Point>
+        </Placemark>
+        """)
 
-    # --- Write KML to disk ---
-    with open(KML_PATH, "w", encoding="utf-8") as f:
-        f.write(doc.to_string(prettyprint=True))
+    parts.append("</Folder>")
+    parts.append("</Document>")
+    parts.append("</kml>")
 
-    # --- Build KMZ ---
+    # Write KML
+    KML_PATH.write_text("\n".join(parts), encoding="utf-8")
+
+    # Build KMZ
     with ZipFile(KMZ_PATH, "w", ZIP_DEFLATED) as z:
         z.write(KML_PATH, "doc.kml")
         z.write(ICON_SRC, "battle.png")
