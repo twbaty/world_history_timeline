@@ -25,30 +25,32 @@ def export_battles_to_kmz():
 
     ns = "{http://www.opengis.net/kml/2.2}"
     doc = kml.KML()
+
     folder = kml.Folder(
-    ns=ns,
-    id="root",
-    name="Battles",
-    description="All battle locations"
+        ns=ns,
+        id="root",
+        name="Battles",
+        description="All battle locations"
     )
     doc.append(folder)
 
-    # --- Style creation using ElementTree (NOT raw strings) ---
+    # --- Style creation using ElementTree ---
     style_el = Element("Style", id="battleStyle")
+
     iconstyle = SubElement(style_el, "IconStyle")
     scale = SubElement(iconstyle, "scale")
     scale.text = "1.2"
 
     icon = SubElement(iconstyle, "Icon")
     href = SubElement(icon, "href")
-    href.text = "battle.png"  # relative inside KMZ
+    href.text = "battle.png"  # file inside KMZ
 
     labelstyle = SubElement(style_el, "LabelStyle")
     label_scale = SubElement(labelstyle, "scale")
     label_scale.text = "1.1"
 
-    # Attach style element directly into the KML root
-    doc._features.append(style_el)
+    # Inject style XML at top level
+    doc.features.append(style_el)
 
     # --- Load battles ---
     with engine.begin() as conn:
@@ -61,26 +63,27 @@ def export_battles_to_kmz():
 
     for row in rows:
         name = row.label or row.id
+        desc = row.description or ""
         point = Point(float(row.longitude), float(row.latitude))
 
         pm = kml.Placemark(
-        ns=ns,
-        id=str(row.id),
-        name=name,
-        description=desc,
-        geometry=point
+            ns=ns,
+            id=str(row.id),
+            name=name,
+            description=desc,
+            geometry=point
         )
         pm.style_url = "#battleStyle"
         folder.append(pm)
 
-    # Write KML
+    # --- Write KML to disk ---
     with open(KML_PATH, "w", encoding="utf-8") as f:
         f.write(doc.to_string(prettyprint=True))
 
-    # Build KMZ
+    # --- Build KMZ ---
     with ZipFile(KMZ_PATH, "w", ZIP_DEFLATED) as z:
-        z.write(KML_PATH, "doc.kml")       # rename inside KMZ
-        z.write(ICON_SRC, "battle.png")    # embed icon
+        z.write(KML_PATH, "doc.kml")
+        z.write(ICON_SRC, "battle.png")
 
     print(f"KMZ written to {KMZ_PATH}")
 
